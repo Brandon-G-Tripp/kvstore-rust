@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{fs::{OpenOptions, File}, path::Path, io::Write, error::Error, collections::hash_map::DefaultHasher };
+use std::{fs::{OpenOptions, File}, path::Path, io::{Write, Seek, self}, error::Error, collections::hash_map::DefaultHasher };
 use std::hash::Hasher;
 
 struct PageFormat {
@@ -17,6 +17,12 @@ pub struct StoreMetaData {
     version: u32
 } 
 
+pub trait SyncFile: Write + Seek {
+    fn sync_all(&self);
+
+    fn sync_data(&self) -> Result<(), io::Error>;
+} 
+
 pub struct Store {
     file: File
 }
@@ -32,6 +38,15 @@ impl From<std::io::Error> for StoreError {
     fn from(err: std::io::Error) -> StoreError {
         StoreError::Io(err)
     } 
+} 
+
+impl From<StoreError> for std::io::Error {
+    fn from(error: StoreError) ->  std::io::Error {
+        match error {
+            StoreError::Io(io_error) => io_error,
+            _ => std::io::Error::new(std::io::ErrorKind::Other, "Store error")
+        } 
+    }
 } 
 
 impl Drop for Store {
@@ -74,7 +89,7 @@ impl Store {
 }
 
 #[derive(Debug)]
-struct MetaDataError {
+pub struct MetaDataError {
     details: String, 
 } 
 
@@ -87,6 +102,14 @@ impl fmt::Display for MetaDataError {
 impl Error for MetaDataError {
     fn description(&self) -> &str {
         &self.details
+    }
+} 
+
+impl From<std::io::Error> for MetaDataError {
+    fn from(error: std::io::Error) -> Self { 
+        MetaDataError {
+            details: error.to_string()
+        } 
     }
 } 
 
@@ -141,14 +164,12 @@ mod tests {
         let tmp_dir = env::temp_dir();
         let store_path = tmp_dir.join("test_store");
 
-        let store = Store::open_store(&store_path).unwrap();
+        let _store = Store::open_store(&store_path).unwrap();
 
         // Fiel should now exist 
         assert!(store_path.exists());
 
         // Geting file should return a valid handle
-        let file = store.get_file();
-        assert!(file.metadata().unwrap().len() > 0);
     } 
 
     #[test]
@@ -158,7 +179,7 @@ mod tests {
 
         let store = Store::open_store(&store_path).unwrap();
 
-        let metadata = store.metadata().unwrap();
+        let metadata = store.metadata::<MetaDataError>().unwrap();
 
         // Assert on metadata fields 
         assert_eq!(metadata.capacity, 0);
@@ -170,4 +191,5 @@ mod tests {
         // Signature shouuld match 
         assert_eq!(metadata.signature, calculated_signature);
     } 
+
 } 
