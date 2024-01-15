@@ -1,3 +1,4 @@
+use core::fmt;
 use std::{fs::{OpenOptions, File}, path::Path, io::Write, error::Error, collections::hash_map::DefaultHasher };
 use std::hash::Hasher;
 
@@ -20,6 +21,19 @@ pub struct Store {
     file: File
 }
 
+#[derive(Debug)]
+enum StoreError {
+    Io(std::io::Error),
+    Serialization(String),
+    Corruption {msg: String},
+} 
+
+impl From<std::io::Error> for StoreError {
+    fn from(err: std::io::Error) -> StoreError {
+        StoreError::Io(err)
+    } 
+} 
+
 impl Drop for Store {
     fn drop(&mut self) {
         let _ = self.file.flush();
@@ -35,12 +49,13 @@ impl Store {
             .read(true)
             .write(true)
             .create(true)
-            .open(path)?;
+            .open(path)
+            .map_err(StoreError::from)?;
 
         Ok(Store{file})
     } 
 
-    pub fn metadata<E: Error>(&self) -> Result<StoreMetaData, std::io::Error> {
+    pub fn metadata<E: Error>(&self) -> Result<StoreMetaData, MetaDataError> {
         let mut metadata = StoreMetaData {
             capacity: self.file.metadata()?.len(),
             num_entries: 0, 
@@ -57,6 +72,23 @@ impl Store {
         &self.file
     } 
 }
+
+#[derive(Debug)]
+struct MetaDataError {
+    details: String, 
+} 
+
+impl fmt::Display for MetaDataError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Metadata error: {}", self.details)
+    }
+} 
+
+impl Error for MetaDataError {
+    fn description(&self) -> &str {
+        &self.details
+    }
+} 
 
 impl StoreMetaData {
 
@@ -97,3 +129,45 @@ impl StoreMetaData {
         hasher.finish()
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    #[test] 
+    fn test_open_and_create_store() {
+        let tmp_dir = env::temp_dir();
+        let store_path = tmp_dir.join("test_store");
+
+        let store = Store::open_store(&store_path).unwrap();
+
+        // Fiel should now exist 
+        assert!(store_path.exists());
+
+        // Geting file should return a valid handle
+        let file = store.get_file();
+        assert!(file.metadata().unwrap().len() > 0);
+    } 
+
+    #[test]
+    fn test_metadata() {
+        let tmp_dir = env::temp_dir();
+        let store_path = tmp_dir.join("test_store");
+
+        let store = Store::open_store(&store_path).unwrap();
+
+        let metadata = store.metadata().unwrap();
+
+        // Assert on metadata fields 
+        assert_eq!(metadata.capacity, 0);
+        assert_eq!(metadata.num_entries, 0);
+        assert_eq!(metadata.version, 1);
+
+        let calculated_signature = metadata.calculate_signature();
+
+        // Signature shouuld match 
+        assert_eq!(metadata.signature, calculated_signature);
+    } 
+} 
