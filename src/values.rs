@@ -48,4 +48,43 @@ mod tests {
         assert_eq!(format!("{:?}", v), "\"test\"");
 
     } 
+
+    #[test]
+    fn test_string_value() {
+        let v = Value::new("foo");
+
+        assert_eq!(v.get(), &"foo")
+    }
+
+    #[test] 
+    fn test_vector_value() {
+        let v = Value::new(vec![1,2,3]);
+
+        assert_eq!(v.get(), &vec![1,2,3]);
+    } 
+
+    // Default values 
+    #[test]
+    fn test_default_integer() {
+        let v: Value<i32> = Default::default();
+
+        assert!(!v.get());
+    }
+
+    #[test]
+    fn test_default_boolean() {
+        let v: Value<bool> = Default::default();
+
+        assert!(!v.get());
+    }
+
+    // Mutable updates 
+    #[test]
+    fn test_mutable_updates() {
+        let mut v = Value::new(1);
+
+        v.set(2);
+
+        assert_eq!(*v.get(), 2);
+    } 
 }
