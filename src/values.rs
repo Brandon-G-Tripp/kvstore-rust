@@ -67,8 +67,13 @@ mod tests {
     #[test]
     fn test_default_integer() {
         let v: Value<i32> = Default::default();
+        
+        let value = *v.get();
 
-        assert!(!v.get());
+        assert_eq!(value, 0);
+
+        let is_default = value == 0;
+        assert!(is_default);
     }
 
     #[test]
