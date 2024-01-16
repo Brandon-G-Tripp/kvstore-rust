@@ -291,6 +291,8 @@ impl PageMap {
 
 #[cfg(test)]
 mod tests {
+    use crate::values::Value;
+
     use super::*;
     use std::env;
 
@@ -410,7 +412,26 @@ mod tests {
 
     #[test]
     fn test_kv_put() {
-        let mut store = Store::new();
+        let tmp_dir = env::temp_dir();
+        let store_path = tmp_dir.join("test_store");
+        let mut store = Store::new(&store_path).unwrap();
+
+        // Generate key/value 
+        let key = "name";
+        let value = "John";
+
+        // Read page back 
+        let page_id = store.allocate_page();
+
+        // Put key/value 
+        store.put(key.to_string(), Value::new(value));
+
+
+        let result_page = store.read_page(page_id).unwrap();
+
+        // Assert value matches 
+        let result = result_page.get(&key);
+        assert_eq!(result, Some(&Value::new(value)));
     } 
 
 } 
