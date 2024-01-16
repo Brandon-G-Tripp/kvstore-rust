@@ -7,7 +7,7 @@ const FOOTER_HEADER_SIZE: usize = 16;
 const METADATA_SIZE: usize = FOOTER_HEADER_SIZE * 2 + NUM_SLOTS_SIZE + SLOT_CAP_SIZE;
 const SLOTS_SIZE: usize = TOTAL_PAGE_SIZE - METADATA_SIZE;
 
-use std::fmt::Debug;
+use std::{fmt::Debug, io::{Seek, self, Write}, fs::File};
 
 pub struct PageFormat {
     header: [u8; FOOTER_HEADER_SIZE],
@@ -130,6 +130,16 @@ impl PageFormat {
         self.slots[..len].copy_from_slice(&values[..len]);
     } 
 
+    pub fn write_to_disk(&self, file: &mut File) -> io::Result<()> {
+        file.seek(io::SeekFrom::End(0))?;
+
+        let bytes = self.serialize();
+
+        file.write_all(&bytes)?;
+        file.sync_data()?;
+
+        Ok(())
+    } 
 
 }
 
