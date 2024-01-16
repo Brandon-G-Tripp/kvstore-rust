@@ -110,6 +110,14 @@ impl Store {
         page.write_to_disk(&mut self.file).unwrap();
 
         page_location
+    }
+
+    fn serialize_page(&self, page: &mut PageFormat) -> Vec<u8> {
+        page.serialize()
+    }
+
+    fn deserialize_page(&self, bytes: Vec<u8>) -> PageFormat {
+        PageFormat::deserialize(bytes)
     } 
 
 }
@@ -249,8 +257,27 @@ mod tests {
 
         // Fiel should now exist 
         assert!(store_path.exists());
+    } 
 
-        // Geting file should return a valid handle
+    #[test]
+    fn test_serialize_page() {
+        // Create store 
+        let tmp_dir = env::temp_dir();
+        let store_path = tmp_dir.join("test_store");
+        let path = Path::new(&store_path);
+        let store = Store::new(&path).unwrap();
+
+        // Create page 
+        let mut page = PageFormat::new();
+
+        //Serialize Page 
+        let bytes = store.serialize_page(&mut page);
+
+        // Deserialize bytes 
+        let deserialized = store.deserialize_page(bytes);
+
+        // Pages should match 
+        assert_eq!(page, deserialized)
     } 
 
     #[test]
