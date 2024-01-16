@@ -13,6 +13,7 @@ pub trait SyncFile: Write + Seek {
 pub struct Store {
     file: File,
     page_map: PageMap,
+    num_pages: u32, 
 }
 
 #[derive(Debug)]
@@ -58,7 +59,8 @@ impl Store {
         Ok(
             Store {
                 file,
-                page_map: PageMap::new()
+                page_map: PageMap::new(),
+                num_pages: 0,
             }
         )
     } 
@@ -89,13 +91,18 @@ impl Store {
         self.page_map.get_location(page_id)
     }
 
-    fn allocate_page(&mut self) -> PageId {
+    pub fn len(&self) -> u32 {
+        self.num_pages
+    } 
+
+    pub fn allocate_page(&mut self) -> PageId {
         let id = PageId::new();
         let cloned_id = id.clone();
         let location = self.allocate_page_on_disk();
         self.map_page(&cloned_id, location);
 
         if let Some(_loc) = self.get_page_location(&id) {
+            self.num_pages += 1;
             id
         } else {
             panic!("Failed to allocate page");
@@ -120,7 +127,8 @@ impl Store {
         PageFormat::deserialize(bytes)
     }
 
-    fn read_page(&mut self, id: PageId) -> Result<PageFormat, io::Error> {
+
+    pub fn read_page(&mut self, id: PageId) -> Result<PageFormat, io::Error> {
         // Get allocated location
         let location = self.get_page_location(&id)
             .ok_or(io::Error::new(ErrorKind::Other, "Page not allocated"))?;
@@ -138,7 +146,7 @@ impl Store {
         Ok(page)
     }
 
-    fn write_page(&mut self, page: &PageFormat, id: &PageId) -> Result<(), io::Error> {
+    pub fn write_page(&mut self, page: &PageFormat, id: &PageId) -> Result<(), io::Error> {
         // Get the allocated location for this page id 
         let location = self.get_page_location(id)
             .ok_or(io::Error::new(ErrorKind::Other, "Page not allocated"))?;
@@ -232,13 +240,13 @@ impl StoreMetaData {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
-struct PageMap {
+pub struct PageMap {
     mappings: BTreeMap<PageId, u64>
 } 
 
 
 #[derive(Clone, Eq, PartialOrd, Ord)]
-struct PageId{
+pub struct PageId {
     id: usize
 }
 
