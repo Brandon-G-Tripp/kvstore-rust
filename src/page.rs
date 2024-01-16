@@ -166,6 +166,58 @@ mod tests {
     } 
 
     #[test]
+fn test_serialize_empty_page() {
+  let page = PageFormat::new();
+  
+  let bytes = page.serialize();
+  
+  // Serialized bytes should be 4096
+  assert_eq!(bytes.len(), 4096); 
+}
+
+#[test]
+fn test_deserialize_empty_page() {
+  let empty_page = PageFormat::new();
+  
+  let bytes = empty_page.serialize();
+  
+  let page = PageFormat::deserialize(bytes);
+  
+  assert_eq!(page, empty_page);
+}
+
+#[test] 
+fn test_serialize_full_page() {
+  let mut page = PageFormat::new();
+  
+  // Populate page
+  page.set_header([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]);
+  page.set_footer([16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1]);  
+  page.set_slots(&[0; 4096]);
+  
+  let bytes = page.serialize();
+  
+  // Should serialize all fields
+  assert_eq!(bytes.len(), 4096);
+}
+
+#[test]
+fn test_deserialize_full_page() {
+  let mut page = PageFormat::new();
+
+  // Populate page
+  page.set_header([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]);
+  page.set_footer([16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1]);  
+  page.set_slots(&[0; 4096]);
+
+  let bytes = page.serialize();
+  
+  let deserialized = PageFormat::deserialize(bytes);
+  
+  assert_eq!(page, deserialized);  
+}
+
+    #[test]
     fn test_read_write_header_footer() {
         let mut page = PageFormat::new();
 
