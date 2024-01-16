@@ -1,21 +1,8 @@
 use core::fmt;
-use std::{fs::{OpenOptions, File}, path::Path, io::{Write, Seek, self}, error::Error, collections::hash_map::DefaultHasher };
+use std::{fs::{OpenOptions, File}, path::Path, io::{Write, Seek, self}, error::Error, collections::{hash_map::DefaultHasher, BTreeMap}, sync::atomic::{AtomicUsize, Ordering} };
 use std::hash::Hasher;
 
-struct PageFormat {
-    header: [u8; 16],
-    slot_cap: u32,
-    num_slots: u32,
-    slots: [u8; 4096],
-    footer: [u8; 16]
-} 
-
-pub struct StoreMetaData {
-    capacity: u64,
-    num_entries: u32,
-    signature: u64,
-    version: u32
-} 
+use crate::page::PageFormat;
 
 pub trait SyncFile: Write + Seek {
     fn sync_all(&self);
@@ -24,7 +11,8 @@ pub trait SyncFile: Write + Seek {
 } 
 
 pub struct Store {
-    file: File
+    file: File,
+    page_map: PageMap,
 }
 
 #[derive(Debug)]
@@ -59,7 +47,7 @@ impl Drop for Store {
 
 impl Store {
 
-    pub fn open_store(path: &Path) -> Result<Store, std::io::Error> {
+    pub fn new(path: &Path) -> Result<Store, std::io::Error> {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -67,7 +55,12 @@ impl Store {
             .open(path)
             .map_err(StoreError::from)?;
 
-        Ok(Store{file})
+        Ok(
+            Store {
+                file,
+                page_map: PageMap::new()
+            }
+        )
     } 
 
     pub fn metadata<E: Error>(&self) -> Result<StoreMetaData, MetaDataError> {
@@ -86,6 +79,39 @@ impl Store {
     pub fn get_file(&self) -> &File {
         &self.file
     } 
+
+    fn map_page(&mut self, page_id: &PageId, location: u64) {
+        let id = page_id.clone();
+        self.page_map.map_page(id, location);
+    } 
+
+    fn get_page_location(&self, page_id: &PageId) -> Option<u64> {
+        self.page_map.get_location(page_id)
+    }
+
+    fn allocate_page(&mut self) -> PageId {
+        let id = PageId::new();
+        let cloned_id = id.clone();
+        let location = self.allocate_page_on_disk();
+        self.map_page(&cloned_id, location);
+
+        if let Some(_loc) = self.get_page_location(&id) {
+            id
+        } else {
+            panic!("Failed to allocate page");
+        } 
+    } 
+
+    fn allocate_page_on_disk(&mut self) -> u64 {
+        let page = PageFormat::new();
+
+        let page_location = self.file.metadata().unwrap().len();
+
+        page.write_to_disk(&mut self.file).unwrap();
+
+        page_location
+    } 
+
 }
 
 #[derive(Debug)]
@@ -111,6 +137,14 @@ impl From<std::io::Error> for MetaDataError {
             details: error.to_string()
         } 
     }
+} 
+
+
+pub struct StoreMetaData {
+    capacity: u64,
+    num_entries: u32,
+    signature: u64,
+    version: u32
 } 
 
 impl StoreMetaData {
@@ -153,6 +187,52 @@ impl StoreMetaData {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct PageMap {
+    mappings: BTreeMap<PageId, u64>
+} 
+
+
+#[derive(Clone, Eq, PartialOrd, Ord)]
+struct PageId{
+    id: usize
+}
+
+impl PartialEq for PageId {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    } 
+}
+
+static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+
+impl PageId {
+
+    fn new() -> Self {
+        Self { id: NEXT_ID.fetch_add(1, Ordering::Relaxed)}
+    } 
+
+    fn clone(&self) -> Self {
+        Self { id: self.id }
+    } 
+} 
+
+impl PageMap {
+    fn new() -> Self {
+        Self {
+            mappings: BTreeMap::new()
+        } 
+    } 
+
+    fn map_page(&mut self, page_id: PageId, location: u64) {
+        self.mappings.insert(page_id, location);
+    } 
+
+    fn get_location(&self, page_id: &PageId) -> Option<u64> {
+        self.mappings.get(page_id).copied()
+    } 
+} 
+
 
 #[cfg(test)]
 mod tests {
@@ -163,8 +243,9 @@ mod tests {
     fn test_open_and_create_store() {
         let tmp_dir = env::temp_dir();
         let store_path = tmp_dir.join("test_store");
+        let path = Path::new(&store_path);
 
-        let _store = Store::open_store(&store_path).unwrap();
+        let _store = Store::new(&path).unwrap();
 
         // Fiel should now exist 
         assert!(store_path.exists());
@@ -177,7 +258,7 @@ mod tests {
         let tmp_dir = env::temp_dir();
         let store_path = tmp_dir.join("test_store");
 
-        let store = Store::open_store(&store_path).unwrap();
+        let store = Store::new(&store_path).unwrap();
 
         let metadata = store.metadata::<MetaDataError>().unwrap();
 
@@ -192,4 +273,43 @@ mod tests {
         assert_eq!(metadata.signature, calculated_signature);
     } 
 
+    #[test]
+    fn test_map_page_to_location() {
+        
+        let tmp_dir = env::temp_dir();
+        let store_path = tmp_dir.join("test_store");
+
+        let mut store = Store::new(&store_path).unwrap();
+
+        let page_id = PageId{id: 0};
+        let location = 0;
+
+        store.map_page(&page_id, location);
+
+        assert_eq!(store.get_page_location(&page_id), Some(location));
+    } 
+
+    #[test]
+    fn test_get_page_location() {
+        let tmp_dir = env::temp_dir();
+        let store_path = tmp_dir.join("test_store");
+
+        let store = Store::new(&store_path).unwrap();
+
+        let page_id = PageId{id: 1};
+
+        assert!(store.get_page_location(&page_id).is_none());
+    } 
+
+    #[test]
+    fn test_allocate_page() {
+        let tmp_dir = env::temp_dir();
+        let store_path = tmp_dir.join("test_store");
+
+        let mut store = Store::new(&store_path).unwrap();
+
+        let page_id = store.allocate_page();
+
+        assert!(store.get_page_location(&page_id).is_some());
+    } 
 } 
