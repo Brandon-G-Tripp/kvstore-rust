@@ -31,6 +31,20 @@ impl<T: Debug> Debug for Value<T> {
     } 
 } 
 
+impl<T: PartialEq> PartialEq for Value<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.data == other.data
+    }
+} 
+
+impl<T: Clone> Clone for Value<T> {
+    fn clone(&self) -> Self {
+        Self {
+            data: self.data.clone()
+        } 
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
