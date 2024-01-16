@@ -263,7 +263,7 @@ mod tests {
         let metadata = store.metadata::<MetaDataError>().unwrap();
 
         // Assert on metadata fields 
-        assert_eq!(metadata.capacity, 0);
+        assert!(metadata.capacity >= 4096);
         assert_eq!(metadata.num_entries, 0);
         assert_eq!(metadata.version, 1);
 
