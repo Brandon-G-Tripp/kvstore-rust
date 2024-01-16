@@ -37,32 +37,3 @@ impl Hash for Key {
     }
 }
 
-pub struct Value<T> {
-    data: T
-} 
-
-impl<T> Value<T> {
-    pub fn new(data: T) -> Self {
-        Self { data }
-    } 
-
-    pub fn get(&self) -> &T {
-        &self.data
-    }
-
-    pub fn set(&mut self, data: T) {
-        self.data = data;
-    } 
-} 
-
-impl<T: Default> Default for Value<T> {
-    fn default() -> Self {
-        Self { data: Default::default() }
-    } 
-} 
-
-impl<T: Debug> Debug for Value<T> {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "{:?}", self.data)
-    } 
-} 
