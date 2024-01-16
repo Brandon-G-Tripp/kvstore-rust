@@ -404,4 +404,10 @@ mod tests {
 
         assert!(store.get_page_location(&page_id).is_some());
     } 
+
+    #[test]
+    fn test_kv_put() {
+        let mut store = Store::new();
+    } 
+
 } 
