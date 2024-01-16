@@ -164,6 +164,9 @@ impl Store {
         Ok(())
     } 
 
+    pub fn put(&mut self, key: String, value: Value) {
+    } 
+
 }
 
 #[derive(Debug)]
