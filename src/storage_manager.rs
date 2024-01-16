@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{fs::{OpenOptions, File}, path::Path, io::{Write, Seek, self}, error::Error, collections::{hash_map::DefaultHasher, BTreeMap}, sync::atomic::{AtomicUsize, Ordering} };
+use std::{fs::{OpenOptions, File}, path::Path, io::{Write, Seek, self, SeekFrom, ErrorKind, Read}, error::Error, collections::{hash_map::DefaultHasher, BTreeMap}, sync::atomic::{AtomicUsize, Ordering} };
 use std::hash::Hasher;
 
 use crate::page::PageFormat;
@@ -118,6 +118,42 @@ impl Store {
 
     fn deserialize_page(&self, bytes: Vec<u8>) -> PageFormat {
         PageFormat::deserialize(bytes)
+    }
+
+    fn read_page(&mut self, id: PageId) -> Result<PageFormat, io::Error> {
+        // Get allocated location
+        let location = self.get_page_location(&id)
+            .ok_or(io::Error::new(ErrorKind::Other, "Page not allocated"))?;
+
+        // Seek to lcoation 
+        self.file.seek(SeekFrom::Start(location))?;
+
+        // Read page bytes from file 
+        let mut bytes = vec![0; 4096];
+        self.file.read_exact(&mut bytes)?;
+
+        // Deserialize bytes to page 
+        let page = PageFormat::deserialize(bytes);
+
+        Ok(page)
+    }
+
+    fn write_page(&mut self, page: &PageFormat, id: &PageId) -> Result<(), io::Error> {
+        // Get the allocated location for this page id 
+        let location = self.get_page_location(id)
+            .ok_or(io::Error::new(ErrorKind::Other, "Page not allocated"))?;
+
+        // Seek to the location in the file 
+        self.file.seek(SeekFrom::Start(location))?;
+
+        // Serialize the page to get the bytes 
+        let bytes = page.serialize();
+
+
+        // Write bytes to file 
+        self.file.write_all(&bytes)?;
+
+        Ok(())
     } 
 
 }
@@ -257,6 +293,27 @@ mod tests {
 
         // Fiel should now exist 
         assert!(store_path.exists());
+    } 
+
+    #[test]
+    fn test_write_and_read_page() {
+        let tmp_dir = env::temp_dir();
+        let store_path = tmp_dir.join("test_store");
+        let path = Path::new(&store_path);
+
+        let mut store = Store::new(&path).unwrap();
+
+        let id = store.allocate_page();
+
+        let mut page = PageFormat::new();
+
+        // Write Page 
+        store.write_page(&mut page, &id).unwrap();
+
+        // read page 
+        let read = store.read_page(id).unwrap();
+
+        assert_eq!(page, read);
     } 
 
     #[test]
