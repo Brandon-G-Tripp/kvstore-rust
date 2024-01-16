@@ -1,5 +1,5 @@
 use std::io::{Write, Seek, Cursor, Result, Read};
-use crate::storage_manager::{SyncFile};
+use crate::storage_manager::SyncFile;
 
 pub struct MockFile {
     pub flushed: bool,
