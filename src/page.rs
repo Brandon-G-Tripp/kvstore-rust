@@ -9,6 +9,8 @@ const SLOTS_SIZE: usize = TOTAL_PAGE_SIZE - METADATA_SIZE;
 
 use std::{fmt::Debug, io::{Seek, self, Write}, fs::File};
 
+use crate::values::Value;
+
 pub struct PageFormat {
     header: [u8; FOOTER_HEADER_SIZE],
     slot_cap: u32,
