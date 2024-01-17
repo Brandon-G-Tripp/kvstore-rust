@@ -1,5 +1,7 @@
 use std::fmt::{Debug, Formatter};
 use std::fmt::Result;
+use bincode;
+use serde::Serialize;
 
 pub struct Value<T> {
     data: T
@@ -16,6 +18,10 @@ impl<T> Value<T> {
 
     pub fn set(&mut self, data: T) {
         self.data = data;
+    } 
+
+    pub fn serialize(&self) -> Vec<u8> {
+        bincode::serialize(&self.data).unwrap()  
     } 
 } 
 
