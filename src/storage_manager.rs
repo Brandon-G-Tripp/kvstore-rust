@@ -2,7 +2,7 @@ use core::fmt;
 use std::{fs::{OpenOptions, File}, path::Path, io::{Write, Seek, self, SeekFrom, ErrorKind, Read}, error::Error, collections::{hash_map::DefaultHasher, BTreeMap}, sync::atomic::{AtomicUsize, Ordering} };
 use std::hash::Hasher;
 
-use crate::page::PageFormat;
+use crate::{page::PageFormat, values::Value};
 
 pub trait SyncFile: Write + Seek {
     fn sync_all(&self);
@@ -164,7 +164,18 @@ impl Store {
         Ok(())
     } 
 
-    pub fn put(&mut self, key: String, value: Value) {
+    pub fn put<T>(&mut self, key: String, value: Value<T>) {
+        // 1. Allocate page 
+        let id = self.allocate_page();
+
+        // 2. Create Page 
+        let mut page = PageFormat::new();
+
+        // 3. insert key/value 
+        let bytes = page.insert(key, value);
+
+        // 4. Write page 
+        page.write_to_disk(&mut self.file);
     } 
 
 }
