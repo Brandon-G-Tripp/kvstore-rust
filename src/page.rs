@@ -141,6 +141,28 @@ impl PageFormat {
         Ok(())
     } 
 
+    pub fn insert<T>(&mut self, key: String, value: Value<T>) -> Vec<u8> {
+        // 1. Serialize key 
+        let key_bytes = key.into_bytes();
+
+        // 2. Serialize value 
+        let value_bytes = value.serialize();
+
+        // 3. Prepend key length 
+        let mut bytes = (key_bytes.len() as u32).to_le_bytes().to_vec();
+
+        // 4. append key bytes 
+        bytes.append(&mut key_bytes);
+
+        // 5. Append value bytes 
+        bytes.append(&mut value_bytes);
+
+        // 6. set slots 
+        self.set_slots(&bytes);
+
+        bytes
+    }
+
 }
 
 pub fn array_from_vec<const N: usize>(bytes: Vec<u8>) -> [u8; N] {
